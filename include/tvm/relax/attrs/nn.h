@@ -455,6 +455,28 @@ struct LeakyReluAttrs : public tvm::AttrsNode<LeakyReluAttrs> {
   }
 };
 
+/*! \brief Attributes used in softplus operators */
+struct SoftplusAttrs : public tvm::AttrsNode<SoftplusAttrs> {
+  double beta;
+  double threshold;
+
+  TVM_DECLARE_ATTRS(SoftplusAttrs, "relax.attrs.SoftplusAttrs") {
+    TVM_ATTR_FIELD(beta).describe(
+        "Scaling factor controlling the sharpness of the Softplus transition.");
+    TVM_ATTR_FIELD(threshold).describe(
+        "Value determining when to use linear approximation for numerical stability.");
+  }
+};
+
+/*! \brief Attributes used in PReLU operator */
+struct PReluAttrs : public tvm::AttrsNode<PReluAttrs> {
+  int axis;
+
+  TVM_DECLARE_ATTRS(PReluAttrs, "relax.attrs.PReluAttrs") {
+    TVM_ATTR_FIELD(axis).describe("The axis along which the alpha values are applied.");
+  }
+};
+
 /*! \brief Attributes used in batch_norm operator */
 struct BatchNormAttrs : public tvm::AttrsNode<BatchNormAttrs> {
   int axis;
@@ -564,7 +586,7 @@ struct AttentionAttrs : public tvm::AttrsNode<AttentionAttrs> {
 /*! \brief Attributes used for the padding operator */
 struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
   Array<Integer> pad_width;
-  runtime::Float pad_value = 0.0;
+  double pad_value = 0.0;
   tvm::String pad_mode;
 
   TVM_DECLARE_ATTRS(PadAttrs, "relax.attrs.PadAttrs") {
@@ -578,6 +600,15 @@ struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
             "Padding type to use. \"constant\" pads with constant_value, "
             "\"edge\" pads using the edge values of the input array, "
             "\"reflect\" pads by reflecting values with respect to the edges.");
+  }
+};
+
+/*! \brief Attributes used for the pixel shuffle operator */
+struct PixelShuffleAttrs : public tvm::AttrsNode<PixelShuffleAttrs> {
+  int upscale_factor;
+
+  TVM_DECLARE_ATTRS(PixelShuffleAttrs, "relax.attrs.PixelShuffleAttrs") {
+    TVM_ATTR_FIELD(upscale_factor).describe("Scale factor for spatial upsampling.");
   }
 };
 

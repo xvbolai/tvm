@@ -43,8 +43,13 @@ from .nn import (
     max_pool3d,
     nll_loss,
     pad,
+    pixel_shuffle,
+    prelu,
     relu,
+    relu6,
     rms_norm,
+    selu,
     silu,
     softmax,
+    softplus,
 )

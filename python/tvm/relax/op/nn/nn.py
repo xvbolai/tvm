@@ -17,7 +17,7 @@
 """Relax Neural Network (NN) operators"""
 from typing import List, Optional, Tuple, Union
 
-from tvm import DataType
+from tvm import DataType, relax
 from tvm.tir import FloatImm
 
 from ...expr import Expr
@@ -515,9 +515,9 @@ def conv2d_transpose(
 
 def pad(
     data: Expr,
-    pad_width: Tuple[Tuple[int, int], ...],
+    pad_width: Union[List[int], Tuple[int, ...]],
     pad_mode: Optional[str] = "constant",
-    pad_value: Optional[Union[float, Expr]] = 0.0,
+    pad_value: Optional[float] = 0.0,
 ):
     r"""Padding
 
@@ -528,14 +528,15 @@ def pad(
     ----------
     data: relax.Expr
         The input data to the operator
-    pad_width: Tuple[Tuple[int, int], ...], required
+    pad_width: Union[List[int], Tuple[int, ...]], required
         Number of values padded to the edges of each axis, in the format
         of ((before_1, after_1), ..., (before_N, after_N))
     pad_mode: Optional[str]
-        'constant', 'edge', or 'reflect'
-        'constant' pads with constant_value pad_value
-        'edge' pads using the edge values of the input array
-        'reflect' pads by reflecting values with respect to the edge
+        'constant', 'reflect', 'replicate', 'circular'
+        'constant' pads with constant value pad_value
+        'reflect' pads by mirroring values excluding the edge
+        'replicate' pads by repeating the edge values.
+        'circular' pads by looping values from the other side
         Default is 'constant'
     pad_value: Optional[Union[float, Expr]]
         The value used for padding. Default is 0.
@@ -546,6 +547,39 @@ def pad(
         The computed result.
     """
     return _ffi_api.pad(data, pad_width, pad_mode, pad_value)
+
+
+def pixel_shuffle(data: Expr, upscale_factor: int):
+    r"""
+    Pixel Shuffle Operator
+
+    This operator performs the pixel shuffle operation on the input tensor,
+    which is often used for efficient sub-pixel convolution in image
+    super-resolution tasks. It rearranges elements in a tensor of shape
+    (N, C × r^2, H, W) to a tensor of shape (N, C, H × r, W × r), where `r`
+    is the upscale factor.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor to the pixel shuffle operator. It must have 4 dimensions
+        with the format (N, C * r^2, H, W), where `r` is the upscale factor.
+
+    upscale_factor : int
+        The upscaling factor `r`. It determines how much to increase the spatial
+        resolution (height and width) of the input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The transformed tensor with shape (N, C, H * r, W * r).
+
+    Example
+    -------
+    If the input tensor has shape (1, 8, 10, 15) and `upscale_factor` is 2,
+    the resulting tensor will have shape (1, 2, 20, 30).
+    """
+    return _ffi_api.pixel_shuffle(data, upscale_factor)
 
 
 def max_pool1d(
@@ -806,7 +840,7 @@ def avg_pool1d(
     padding: Union[int, Tuple[int, ...]] = (0, 0),
     dilation: Union[int, Tuple[int, int]] = (1,),
     ceil_mode: bool = False,
-    count_include_pad: bool = False,
+    count_include_pad: bool = True,
     layout: str = "NCW",
     out_layout: Optional[str] = None,
 ) -> Expr:
@@ -974,7 +1008,7 @@ def avg_pool3d(
     padding: Union[int, Tuple[int, ...]] = (0, 0, 0),
     dilation: Union[int, Tuple[int, int]] = (1, 1, 1),
     ceil_mode: bool = False,
-    count_include_pad: bool = False,
+    count_include_pad: bool = True,
     layout: str = "NCDHW",
     out_layout: Optional[str] = None,
 ) -> Expr:
@@ -1233,6 +1267,25 @@ def relu(data: Expr) -> Expr:
     return _ffi_api.relu(data)  # type: ignore
 
 
+def relu6(data: Expr) -> Expr:
+    r"""ReLU6 activation function.
+
+    .. math::
+        \text{ReLU6}(x) = \min(\max(x, 0), 6)
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return relax.op.clip(data, 0, 6)
+
+
 def leakyrelu(data: Expr, alpha: float = 0.01) -> Expr:
     """Rectified linear unit.
 
@@ -1304,6 +1357,30 @@ def gelu_tanh(data: Expr) -> Expr:
     return _ffi_api.gelu_tanh(data)  # type: ignore
 
 
+def selu(data: Expr) -> Expr:
+    r"""Scaled Exponential Linear Unit (SELU).
+
+    .. math::
+        \text{SELU}(x) = \lambda \begin{cases}
+            x & \text{if } x > 0 \\
+            \alpha (e^x - 1) & \text{if } x \leq 0
+        \end{cases}
+
+    where :math:`\lambda \approx 1.0507` and :math:`\alpha \approx 1.6733`.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.selu(data)
+
+
 def silu(data: Expr) -> Expr:
     r"""Sigmoid Linear Unit function
 
@@ -1354,6 +1431,31 @@ def softmax(data: Expr, axis: int = -1) -> Expr:
     return _ffi_api.softmax(data, axis)  # type: ignore
 
 
+def softplus(data: Expr, beta: float = 1.0, threshold: float = 20.0) -> Expr:
+    r"""Softplus activation function.
+
+    .. math:: \text{Softplus}(x) = \frac{1}{\beta} \log(1 + e^{\beta x})
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data.
+
+    beta : float, optional
+        Controls the smoothness of the transition. Default is 1.0.
+
+    threshold : float, optional
+        The value beyond which the function is approximated as linear
+        to avoid numerical instability. Default is 20.0.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.softplus(data, beta, threshold)
+
+
 def log_softmax(data: Expr, axis: int = -1) -> Expr:
     r"""Computes log softmax.
 
@@ -1380,6 +1482,32 @@ def log_softmax(data: Expr, axis: int = -1) -> Expr:
         The computed result.
     """
     return _ffi_api.log_softmax(data, axis)  # type: ignore
+
+
+def prelu(data: Expr, alpha: Expr, axis: int = 1) -> Expr:
+    r"""Parametric Rectified Linear Unit (PReLU).
+
+    .. math::
+        PReLU(x) = x \text{ if } x > 0 \text{ else } \alpha * x
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor.
+
+    alpha : relax.Expr
+        The learnable slope tensor, applied channel-wise.
+
+    axis : int
+        The axis along which the `alpha` values are applied
+        Default is 1 (assuming NCHW format).
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.prelu(data, alpha, axis)
 
 
 def batch_norm(
